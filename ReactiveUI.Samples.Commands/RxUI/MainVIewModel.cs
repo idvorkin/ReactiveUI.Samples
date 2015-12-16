@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,21 +13,20 @@ namespace ReactiveUI.Samples.Commands.RxUI
             DisplayCommand = ReactiveCommand.Create(this.WhenAny(x => x.Name, x => !string.IsNullOrEmpty(x.Value)));
             DisplayCommand.Subscribe(_ => MessageBox.Show("You clicked on DisplayCommand: Name is " + Name));
 
-            StartAsyncCommand = ReactiveCommand.CreateAsyncTask<AsyncVoid>(_ =>
-            {
-                return Task.Run(() =>
+            Action<long> incrementProgress = (_) => Progress = (Progress + 5) % 100;
+            var smallRandomNumber = new Random(DateTime.Now.Millisecond).Next(10);
+            var countUp = Observable.Interval(TimeSpan.FromSeconds(0.1)).Take(smallRandomNumber);
+            StartAsyncCommand = ReactiveCommand.CreateAsyncTask(
+                async _ =>
                 {
-                    Progress = 0;
-                    while (Progress <= 100)
-                    {
-                        Progress += 10;
-                        Thread.Sleep(100);
-                    }
-
-                    return AsyncVoid.Default;
+                    await countUp.ForEachAsync(incrementProgress);
+                    return AsyncVoid.Default; 
                 });
-            });
 
+            // XXX: What's the difference between CreateAyncTask and Create(), followed by Subscribe?
+            // This documention isn't clicking - http://reactiveui.readthedocs.org/en/stable/basics/reactive-command-async/
+            var StartAsyncCommand2 = ReactiveCommand.Create();
+            StartAsyncCommand2.Subscribe(_=>countUp.ForEachAsync(incrementProgress));
         }
         private string _Name;
 
@@ -39,16 +39,11 @@ namespace ReactiveUI.Samples.Commands.RxUI
         public ReactiveCommand<object> DisplayCommand { get; protected set; }
 
         private int _Progress;
-
         public int Progress
         {
             get { return _Progress; }
             set { this.RaiseAndSetIfChanged(ref _Progress, value); }
         }
-
         public ReactiveCommand<AsyncVoid> StartAsyncCommand { get; protected set; }
-
-
-
     }
 }

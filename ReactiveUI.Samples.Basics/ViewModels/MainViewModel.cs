@@ -15,19 +15,19 @@ namespace ReactiveUI.Samples.Basics.ViewModels
         public MainViewModel()
         {
             RxApp.MainThreadScheduler = new DispatcherScheduler(Application.Current.Dispatcher);
-            Task.Factory.StartNew(() =>
-            {
-                for(;;)
-                {
-                    Progress = (Progress + 1)%100;
-                    Func<int, bool> isMultipleOf10 = (x) => x%10 == 0;
-                    var delay = isMultipleOf10(Progress) ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(0.5);
-                    Thread.Sleep(delay);
-                }
-            });
+            var slowTicks = Observable.Interval(TimeSpan.FromSeconds(5));
+            var fastTicks = Observable.Interval(TimeSpan.FromSeconds(0.5));
+            Func<bool> isProgressMultipleOf10 = ()=> Progress%10 == 0;
+            Action<long,int> IncrementProgress = (_,__) => Progress = (Progress + 1)%100;
+
+            // Kind of weird, but experssive, I think this leaks, need to figure out how to avoid that.
+            slowTicks.Where(_=>isProgressMultipleOf10()).ForEachAsync(IncrementProgress);
+            fastTicks.Where(_=>!isProgressMultipleOf10()).ForEachAsync(IncrementProgress);
 
             // For R/W properties, write it on someone elses subscription.
-            this.ObservableForProperty(vm => vm.Progress).Throttle(TimeSpan.FromSeconds(1)).Subscribe(c =>
+            this.ObservableForProperty(vm => vm.Progress)
+                .Where((x,index)=> (index % 4) == 0)
+                .Subscribe(c =>
                 {
                     SlowProgress = Progress;
                 });
@@ -41,9 +41,10 @@ namespace ReactiveUI.Samples.Basics.ViewModels
 
             // You can do arbitray subscriptions on the observable.
             this.WhenAny(
+                    vm => vm.Progress, 
                     vm => vm.SlowProgress2, 
                     vm => vm.SlowProgress,
-                    (sp2,sp) =>  $"SP:{sp.Value};SP2:{sp2.Value}"
+                    (progress,sp2,sp) =>  $"P:{progress.Value} SP:{sp.Value};SP2:{sp2.Value}"
                 ).Subscribe(s=>Debug.WriteLine(s));
 
 
@@ -90,9 +91,5 @@ namespace ReactiveUI.Samples.Basics.ViewModels
             get { return _Calculator; }
             set { this.RaiseAndSetIfChanged(ref _Calculator, value); }
         }
-
-        
-
-         
     }
 }

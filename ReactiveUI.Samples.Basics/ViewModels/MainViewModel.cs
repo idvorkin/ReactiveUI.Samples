@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
@@ -16,42 +17,53 @@ namespace ReactiveUI.Samples.Basics.ViewModels
             RxApp.MainThreadScheduler = new DispatcherScheduler(Application.Current.Dispatcher);
             Task.Factory.StartNew(() =>
             {
-                while (true)
+                for(;;)
                 {
-                    if (Progress == 100)
-                    {
-                        Progress = 0;
-
-                    }
-                    Progress++;
-                    Thread.Sleep(Progress%10 == 0 ? 2000 : 400);
+                    Progress = (Progress + 1)%100;
+                    Func<int, bool> isMultipleOf10 = (x) => x%10 == 0;
+                    var delay = isMultipleOf10(Progress) ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(0.5);
+                    Thread.Sleep(delay);
                 }
-
             });
-            //Throttling the updates for the SlowProgress, Actually we can accomplish it with a few ways
-            //@xpaulbettsx is there a better way?
-            // 1:
+
+            // For R/W properties, write it on someone elses subscription.
             this.ObservableForProperty(vm => vm.Progress).Throttle(TimeSpan.FromSeconds(1)).Subscribe(c =>
                 {
                     SlowProgress = Progress;
-
                 });
-            // 2:
-            this.WhenAny(vm => vm.Progress, model => true).Throttle(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler).
-                Subscribe(c => SlowProgress2 = Progress);
+
+
+            // For (read only) subscription only properties - use ToProperty.
+            this.WhenAnyValue(vm => vm.Progress)
+                .Select(progress=>(progress*2)%100)
+                .Delay(TimeSpan.FromSeconds(0.2))
+                .ToProperty(this, vm => vm.SlowProgress2, out slowProgress2,initialValue:50);
+
+            // You can do arbitray subscriptions on the observable.
+            this.WhenAny(
+                    vm => vm.SlowProgress2, 
+                    vm => vm.SlowProgress,
+                    (sp2,sp) =>  $"SP:{sp.Value};SP2:{sp2.Value}"
+                ).Subscribe(s=>Debug.WriteLine(s));
+
+
+            // NOTES: WhenAnyValue vs ObservableForProperty  vs WhenAny vs WhenAnyObservable
+            // http://reactiveui.readthedocs.org/en/stable/basics/whenany/
+                // OFP -> single property  -can't pass initial value
+                // WAV -> single property - can pass initial value
+                // WA -> multiple property - can pass initial value
+                // TBD: WAO
 
             Person = new PersonViewModel();
             Calculator = new CalculatorViewModel();
         }
 
         private int _Progress;
-
         public int Progress
         {
             get { return _Progress; }
             set { this.RaiseAndSetIfChanged(ref _Progress, value); }
         }
-
         private int _SlowProgress;
 
         public int SlowProgress
@@ -60,13 +72,8 @@ namespace ReactiveUI.Samples.Basics.ViewModels
             set { this.RaiseAndSetIfChanged(ref _SlowProgress, value); }
         }
 
-        private int _SlowProgress2;
-
-        public int SlowProgress2
-        {
-            get { return _SlowProgress2; }
-            set { this.RaiseAndSetIfChanged(ref _SlowProgress2, value); }
-        }
+        readonly ObservableAsPropertyHelper<int> slowProgress2;
+        public int SlowProgress2 => slowProgress2.Value;
 
         private PersonViewModel _Person;
 

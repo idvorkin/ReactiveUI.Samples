@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reactive.Linq;
 using ReactiveUI;
 
 namespace ReactiveUI.Samples.Messaging.RxUI
@@ -28,23 +29,14 @@ namespace ReactiveUI.Samples.Messaging.RxUI
 
     public class SubscriberViewModel : ReactiveObject
     {
+        readonly ObservableAsPropertyHelper<int> value;
+        public int Value => value.Value;
         public SubscriberViewModel()
         {
-            MessageBus.Current.Listen<object>().Subscribe(_ =>
-            {
-                Value++;
-            });
+            MessageBus.Current.Listen<object>()
+            .Select(_=>this.Value+1)
+            .ToProperty(this, vm => vm.Value, out value);
         }
-
-
-        private int _Value;
-
-        public int Value
-        {
-            get { return _Value; }
-            set { this.RaiseAndSetIfChanged(ref _Value, value); }
-        }
-
     }
 
 

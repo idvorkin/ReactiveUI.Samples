@@ -26,10 +26,11 @@
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Calculate (x) => (x * 10): "/>
-                    <TextBox Text="{Binding Calculator.Number, ValidatesOnExceptions=True, ValidatesOnDataErrors=True, UpdateSourceTrigger=PropertyChanged}" Width="100" Height="30"/>
+                    <TextBox Text="{Binding Calculator.InputNumber, ValidatesOnExceptions=True, ValidatesOnDataErrors=True, UpdateSourceTrigger=PropertyChanged}" Width="100" Height="30"/>
                 </StackPanel>
                 <Button Content="Calculate" Command="{Binding Calculator.CalculateCommand}"/>
                 <TextBlock Text="{Binding Calculator.Result}"/>
+                <TextBlock Text="{Binding Calculator.OutputLine}"/>
             </StackPanel>
         </Expander>
     </StackPanel>

@@ -1,5 +1,7 @@
-﻿using Splat;
+﻿using System;
+using Splat;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -8,63 +10,70 @@ namespace ReactiveUI.Samples.Basics.ViewModels
 {
     public class CalculatorViewModel : ReactiveValidatedObject
     {
-        private MemoizingMRUCache<int, int> _cache;
+        private MemoizingMRUCache<int, int> _calculationMemoizer;
 
         public CalculatorViewModel()
         {
-            _cache = new MemoizingMRUCache<int, int>((x, ctx) =>
+            _calculationMemoizer = new MemoizingMRUCache<int, int>((x, ctx) =>
             {
-                Thread.Sleep(1000);
-                // Pretend this calculation isn’t cheap
+                Thread.Sleep(TimeSpan.FromSeconds(5));
                 return x*10;
-            }, 5);
+            }, maxSize:5);
 
 
             CalculateCommand = ReactiveCommand.CreateAsyncTask(o => {
                 return Task.Factory.StartNew(() =>
                 {
-                    int top;
-                    bool cached = _cache.TryGet(    Number, out top);
+                    int cachedAnswer;
+                    OutputLine = "Executing Calculate Command";
+                    bool cached = _calculationMemoizer.TryGet(    InputNumber, out cachedAnswer);
                     if (cached)
                     {
-                        Result = 0;
-                        Thread.Sleep(1000);
-                        Result = top;
+                        // set it to -1 so you can see it's cached.
+                        OutputLine = "Value cached - reading it";
+                        Thread.Sleep(TimeSpan.FromSeconds(1));
+                        Result = cachedAnswer;
+                        OutputLine = "Done";
                     }
                     else
                     {
-                        top = _cache.Get(Number);
-                        for (int i = 0; i <= top; i++)
+                        // set it to -2 so you can see it's being computed.
+                        OutputLine = "Value not cached, calling memoizer";
+                        cachedAnswer = _calculationMemoizer.Get(InputNumber);
+                        for (int i = 0; i <= cachedAnswer; i++)
                         {
+                            // Count up from 0 to the answer slowly.
                             Result = i;
                             Thread.Sleep(100);
                         }
-
+                        OutputLine = "Done";
                     }
-
-
                 });
             });
 
         }
 
-        private int _Number;
-
+        private int _inputNumber;
         [Required]
-        public int Number
+        public int InputNumber
         {
-            get { return _Number; }
-            set { this.RaiseAndSetIfChanged(ref _Number, value); }
+            get { return _inputNumber; }
+            set { this.RaiseAndSetIfChanged(ref _inputNumber, value); }
         }
 
         public ICommand CalculateCommand { get; set; }
 
         private int _Result;
-
         public int Result
         {
             get { return _Result; }
             set { this.RaiseAndSetIfChanged(ref _Result, value); }
+        }
+        private string _OutputLine;
+        public string OutputLine
+        {
+            get { return _OutputLine; }
+            set { this.RaiseAndSetIfChanged(ref _OutputLine, value); }
         }
     }
 }
